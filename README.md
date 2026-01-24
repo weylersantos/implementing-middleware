@@ -1,342 +1,616 @@
-# 🎬 API de Gerenciamento de Filmes e Watchlist
+# 🔐 Sistema de Autenticação com JWT e HttpOnly Cookies
 
-Uma API REST desenvolvida em Node.js com Express para gerenciar filmes e listas de observação (watchlist) de usuários, incluindo sistema completo de autenticação com JWT.
+> Projeto de estudo demonstrando uma implementação segura de autenticação utilizando JWT (JSON Web Token) armazenado em cookies HttpOnly, com backend em Node.js/Express e frontend em React.
+
+---
 
 ## 📋 Índice
 
-- [Sobre o Projeto](#sobre-o-projeto)
-- [Tecnologias Utilizadas](#tecnologias-utilizadas)
-- [Pré-requisitos](#pré-requisitos)
-- [Instalação](#instalação)
-- [Configuração](#configuração)
-- [Estrutura do Projeto](#estrutura-do-projeto)
-- [Endpoints da API](#endpoints-da-api)
-- [Modelos de Dados](#modelos-de-dados)
-- [Executando o Projeto](#executando-o-projeto)
-- [Scripts Disponíveis](#scripts-disponíveis)
+- [Visão Geral](#-visão-geral)
+- [Arquitetura do Projeto](#-arquitetura-do-projeto)
+- [Tecnologias Utilizadas](#-tecnologias-utilizadas)
+- [Conceitos de Segurança](#-conceitos-de-segurança)
+- [Fluxo de Autenticação](#-fluxo-de-autenticação)
+- [Estrutura de Arquivos](#-estrutura-de-arquivos)
+- [Detalhamento do Backend](#-detalhamento-do-backend)
+- [Detalhamento do Frontend](#-detalhamento-do-frontend)
+- [Como Executar](#-como-executar)
+- [Endpoints da API](#-endpoints-da-api)
+- [Testes Manuais](#-testes-manuais)
+- [Considerações de Segurança](#-considerações-de-segurança)
+- [Melhorias Futuras](#-melhorias-futuras)
 
-## 🎯 Sobre o Projeto
+---
 
-Esta API permite que usuários:
-- Criem contas e façam login/logout
-- Gerenciem filmes (CRUD completo)
-- Criem e gerenciem suas listas de observação pessoais
-- Adicionem filmes à watchlist com status, avaliações e notas
-- Acompanhem o progresso de assistir filmes
+## 🎯 Visão Geral
+
+Este projeto implementa um sistema completo de autenticação seguindo boas práticas de segurança:
+
+- **Autenticação via JWT** armazenado em cookie HttpOnly
+- **Proteção contra XSS** (Cross-Site Scripting)
+- **Proteção básica contra CSRF** (Cross-Site Request Forgery)
+- **Rotas protegidas** no frontend com verificação de sessão
+- **Interceptors** para redirecionamento automático em caso de sessão expirada
+
+---
+
+## 🏗 Arquitetura do Projeto
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         FRONTEND                                │
+│                    (React + Vite)                               │
+│                    http://localhost:5173                        │
+│                                                                 │
+│  ┌───────────┐    ┌───────────┐    ┌──────────────────────┐     │
+│  │  Login    │    │  Perfil   │    │   ProtectedRoute     │     │
+│  │  Page     │    │  Page     │    │   (HOC de proteção)  │     │
+│  └─────┬─────┘    └─────┬─────┘    └──────────┬───────────┘     │
+│        │                │                     │                 │
+│        └────────────────┴─────────────────────┘                 │
+│                         │                                       │
+│                  ┌──────┴──────┐                                │
+│                  │   api.ts    │ ← Axios com withCredentials    │
+│                  │ (Interceptor)│                               │
+│                  └──────┬──────┘                                │
+└─────────────────────────┼───────────────────────────────────────┘
+                          │
+                     HTTP + Cookies
+                          │
+┌─────────────────────────┼───────────────────────────────────────┐
+│                         ▼                                       │
+│                      BACKEND                                    │
+│                  (Express + JWT)                                │
+│                  http://localhost:3000                          │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                    server.ts                            │    │
+│  │  ┌─────────┐  ┌─────────┐  ┌────────┐  ┌───────────┐    │    │
+│  │  │ /login  │  │ /logout │  │  /me   │  │  /perfil  │    │    │
+│  │  │ (POST)  │  │ (POST)  │  │ (GET)  │  │  (GET)    │    │    │
+│  │  └────┬────┘  └────┬────┘  └───┬────┘  └─────┬─────┘    │    │
+│  │       │            │           │             │          │    │
+│  │       │            │     ┌─────┴─────────────┘          │    │
+│  │       │            │     ▼                              │    │
+│  │       │            │  ┌──────────────────────────┐      │    │
+│  │       │            │  │   auth.middleware.ts     │      │    │
+│  │       │            │  │   (Validação do JWT)     │      │    │
+│  │       │            │  └──────────────────────────┘      │    │
+│  └───────┴────────────┴────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
 
 ## 🛠 Tecnologias Utilizadas
 
-- **Node.js** - Runtime JavaScript
-- **Express.js** - Framework web
-- **Prisma** - ORM para gerenciamento de banco de dados
-- **PostgreSQL** - Banco de dados relacional
-- **JWT (jsonwebtoken)** - Autenticação baseada em tokens
-- **bcryptjs** - Criptografia de senhas
-- **dotenv** - Gerenciamento de variáveis de ambiente
-- **nodemon** - Desenvolvimento com hot-reload
+### Backend
 
-## 📦 Pré-requisitos
+| Tecnologia        | Versão | Descrição                          |
+| ----------------- | ------ | ---------------------------------- |
+| **Express**       | 5.2.1  | Framework web para Node.js         |
+| **jsonwebtoken**  | 9.0.3  | Implementação de JWT para Node.js  |
+| **cookie-parser** | 1.4.7  | Middleware para parsing de cookies |
+| **cors**          | 2.8.6  | Middleware para habilitar CORS     |
+| **tsx**           | 4.21.0 | Executor de TypeScript             |
+| **TypeScript**    | 5.9.3  | Superset tipado do JavaScript      |
 
-Antes de começar, você precisa ter instalado:
+### Frontend
 
-- [Node.js](https://nodejs.org/) (versão 18 ou superior)
-- [PostgreSQL](https://www.postgresql.org/) (versão 12 ou superior)
-- [npm](https://www.npmjs.com/) ou [yarn](https://yarnpkg.com/)
+| Tecnologia           | Versão | Descrição                         |
+| -------------------- | ------ | --------------------------------- |
+| **React**            | 19.2.0 | Biblioteca para construção de UIs |
+| **react-router-dom** | 7.13.0 | Roteamento para React             |
+| **axios**            | 1.13.2 | Cliente HTTP                      |
+| **Vite**             | 7.2.4  | Build tool e dev server           |
+| **TypeScript**       | 5.9.3  | Superset tipado do JavaScript     |
 
-## 🚀 Instalação
+---
 
-1. Clone o repositório:
-```bash
-git clone https://github.com/seu-usuario/middlewares.git
-cd middlewares
+## 🔒 Conceitos de Segurança
+
+### Por que usar Cookie HttpOnly em vez de LocalStorage?
+
+| Aspecto                     | LocalStorage  | Cookie HttpOnly |
+| --------------------------- | ------------- | --------------- |
+| **Acesso via JavaScript**   | ✅ Sim        | ❌ Não          |
+| **Vulnerável a XSS**        | ⚠️ Alto risco | ✅ Protegido    |
+| **Enviado automaticamente** | ❌ Não        | ✅ Sim          |
+| **Controle de expiração**   | Manual        | Automático      |
+
+### Flags do Cookie Explicadas
+
+```typescript
+res.cookie("access_token", token, {
+  httpOnly: true, // JavaScript NÃO consegue acessar (proteção XSS)
+  secure: true, // Só envia via HTTPS (produção)
+  sameSite: "lax", // Proteção básica contra CSRF
+  maxAge: 15000, // Tempo de vida em milissegundos
+});
 ```
 
-2. Instale as dependências:
+#### Detalhamento das Flags:
+
+| Flag       | Valor            | Propósito                                                                                      |
+| ---------- | ---------------- | ---------------------------------------------------------------------------------------------- |
+| `httpOnly` | `true`           | Impede acesso via `document.cookie` no JavaScript. Proteção contra ataques XSS.                |
+| `secure`   | `true` (em prod) | Cookie só é enviado em conexões HTTPS. Proteção contra man-in-the-middle.                      |
+| `sameSite` | `"lax"`          | Previne que o cookie seja enviado em requisições cross-site (exceto navegação). Proteção CSRF. |
+| `maxAge`   | `15000`          | Tempo de vida do cookie em ms. Após expirar, o browser descarta automaticamente.               |
+
+### Valores possíveis para `sameSite`:
+
+- **`strict`**: Cookie NUNCA é enviado em requisições cross-site
+- **`lax`**: Cookie é enviado em navegação top-level (links), mas não em POST cross-site
+- **`none`**: Cookie sempre enviado (requer `secure: true`)
+
+---
+
+## 🔄 Fluxo de Autenticação
+
+### 1. Login (Sucesso)
+
+```
+┌──────────┐                              ┌──────────┐
+│  Client  │                              │  Server  │
+└────┬─────┘                              └────┬─────┘
+     │                                         │
+     │  POST /login                            │
+     │  { email, password }                    │
+     │────────────────────────────────────────►│
+     │                                         │
+     │                          Valida credenciais
+     │                          Gera JWT token
+     │                                         │
+     │  200 OK                                 │
+     │  Set-Cookie: access_token=xxx          │
+     │  { message, user }                      │
+     │◄────────────────────────────────────────│
+     │                                         │
+     │  Browser salva cookie automaticamente   │
+     │                                         │
+```
+
+### 2. Acessando Rota Protegida
+
+```
+┌──────────┐                              ┌──────────┐
+│  Client  │                              │  Server  │
+└────┬─────┘                              └────┬─────┘
+     │                                         │
+     │  GET /perfil                            │
+     │  Cookie: access_token=xxx               │
+     │────────────────────────────────────────►│
+     │                                         │
+     │                    Middleware intercepta
+     │                    Extrai token do cookie
+     │                    Verifica JWT
+     │                    Adiciona user ao req
+     │                                         │
+     │  200 OK                                 │
+     │  { data, user }                         │
+     │◄────────────────────────────────────────│
+     │                                         │
+```
+
+### 3. Token Inválido/Expirado
+
+```
+┌──────────┐                              ┌──────────┐
+│  Client  │                              │  Server  │
+└────┬─────┘                              └────┬─────┘
+     │                                         │
+     │  GET /perfil                            │
+     │  Cookie: access_token=expired_token     │
+     │────────────────────────────────────────►│
+     │                                         │
+     │                    jwt.verify() falha
+     │                                         │
+     │  403 Forbidden                          │
+     │  { message: "Token inválido" }          │
+     │◄────────────────────────────────────────│
+     │                                         │
+     │  Interceptor redireciona para /login    │
+     │                                         │
+```
+
+### 4. Logout
+
+```
+┌──────────┐                              ┌──────────┐
+│  Client  │                              │  Server  │
+└────┬─────┘                              └────┬─────┘
+     │                                         │
+     │  POST /logout                           │
+     │────────────────────────────────────────►│
+     │                                         │
+     │                    res.clearCookie()
+     │                                         │
+     │  200 OK                                 │
+     │  Set-Cookie: access_token=; Max-Age=0  │
+     │◄────────────────────────────────────────│
+     │                                         │
+     │  Browser remove o cookie                │
+     │                                         │
+```
+
+---
+
+## 📁 Estrutura de Arquivos
+
+```
+autenticacao/
+├── backend/
+│   ├── server.ts           # Servidor Express + rotas
+│   ├── auth.middleware.ts  # Middleware de autenticação JWT
+│   ├── package.json        # Dependências do backend
+│   └── node_modules/
+│
+├── frontend/
+│   ├── src/
+│   │   ├── main.tsx           # Entry point + configuração de rotas
+│   │   ├── api.ts             # Configuração do Axios + Interceptors
+│   │   ├── Login.tsx          # Página de login
+│   │   ├── Perfil.tsx         # Página protegida do perfil
+│   │   └── ProtectedRoute.tsx # HOC para proteção de rotas
+│   │
+│   ├── index.html          # HTML base
+│   ├── package.json        # Dependências do frontend
+│   ├── vite.config.ts      # Configuração do Vite
+│   └── node_modules/
+│
+└── README.MD               # Este arquivo
+```
+
+---
+
+## 🖥 Detalhamento do Backend
+
+### `server.ts` - Servidor Principal
+
+```typescript
+// Middlewares essenciais
+app.use(express.json()); // Parse de JSON no body
+app.use(cookieParser()); // Parse de cookies
+app.use(
+  cors({
+    origin: "http://localhost:5173", // Origem permitida (Vite)
+    credentials: true, // CRUCIAL: permite envio de cookies
+  }),
+);
+```
+
+#### Rota POST `/login`
+
+- Recebe `email` e `password` no body
+- Valida credenciais (hardcoded para estudo: `dev@teste.com` / `123456`)
+- Gera token JWT com payload `{ id, role, email }`
+- Retorna cookie HttpOnly com o token
+
+#### Rota GET `/me`
+
+- **Protegida** pelo `authMiddleware`
+- Retorna dados do usuário decodificados do JWT
+- Útil para verificar se a sessão está válida
+
+#### Rota GET `/perfil`
+
+- **Protegida** pelo `authMiddleware`
+- Simula retorno de dados sensíveis do usuário
+
+#### Rota POST `/logout`
+
+- Limpa o cookie usando `res.clearCookie()`
+- O browser remove o cookie automaticamente
+
+### `auth.middleware.ts` - Middleware de Autenticação
+
+```typescript
+export const authMiddleware = (req, res, next) => {
+  // 1. Extrai token do cookie (NÃO do header Authorization)
+  const token = req.cookies.access_token;
+
+  if (!token) {
+    return res.status(401).json({ message: "Token não fornecido" });
+  }
+
+  try {
+    // 2. Verifica e decodifica o JWT
+    const decoded = jwt.verify(token, SECRET_KEY);
+
+    // 3. Anexa dados do usuário na requisição
+    (req as any).user = decoded;
+
+    // 4. Permite continuar para a rota
+    next();
+  } catch (err) {
+    // Token inválido ou expirado
+    return res.status(403).json({ message: "Token inválido ou expirado" });
+  }
+};
+```
+
+---
+
+## ⚛️ Detalhamento do Frontend
+
+### `api.ts` - Configuração do Axios
+
+```typescript
+export const api = axios.create({
+  baseURL: "http://localhost:3000",
+  withCredentials: true, // 🔑 ESSENCIAL: permite envio/recebimento de cookies
+});
+
+// Interceptor para tratar erros de autenticação globalmente
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response.status === 401) {
+      // Redireciona automaticamente para login se não autorizado
+      window.location.href = "/login";
+    }
+  },
+);
+```
+
+> ⚠️ **IMPORTANTE**: O `withCredentials: true` é obrigatório para que o Axios envie e receba cookies cross-origin.
+
+### `Login.tsx` - Página de Login
+
+```typescript
+const handleLogin = async () => {
+  try {
+    // 1. Faz POST para /login
+    await api.post("/login", { email, password });
+
+    // 2. Se sucesso, o browser já recebeu e salvou o cookie
+    //    (via header Set-Cookie da resposta)
+
+    // 3. Navega para página protegida
+    navigate("/perfil");
+  } catch (err) {
+    alert("Erro no login");
+  }
+};
+```
+
+### `ProtectedRoute.tsx` - HOC de Proteção
+
+```typescript
+export function ProtectedRoute({ children }: ProtectedRouteProps) {
+  const [isAuth, setIsAuth] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    // Verifica autenticação chamando rota protegida
+    api.get("/me")
+      .then(() => setIsAuth(true))   // Token válido
+      .catch(() => setIsAuth(false)); // Token inválido
+  }, []);
+
+  // Estado de carregamento
+  if (isAuth === null) return <div>Carregando...</div>;
+
+  // Renderiza children ou redireciona
+  return isAuth ? children : <Navigate to="/login" replace />;
+}
+```
+
+### `main.tsx` - Configuração de Rotas
+
+```typescript
+<BrowserRouter>
+  <Routes>
+    {/* Rotas públicas */}
+    <Route path="/login" element={<Login />} />
+    <Route path="/" element={<Login />} />
+
+    {/* Rotas protegidas - envolvidas pelo ProtectedRoute */}
+    <Route
+      path="/perfil"
+      element={
+        <ProtectedRoute>
+          <Perfil />
+        </ProtectedRoute>
+      }
+    />
+  </Routes>
+</BrowserRouter>
+```
+
+### `Perfil.tsx` - Página Protegida
+
+```typescript
+export function Perfil() {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    // Busca dados do usuário ao montar
+    api
+      .get("/me")
+      .then((response) => setUser(response.data.user))
+      .catch(() => navigate("/login"));
+  }, []);
+
+  const handleLogout = async () => {
+    await api.post("/logout"); // Limpa cookie no servidor
+    navigate("/login"); // Redireciona
+  };
+
+  // ... render
+}
+```
+
+---
+
+## 🚀 Como Executar
+
+### Pré-requisitos
+
+- Node.js 18+ instalado
+- npm ou yarn
+
+### 1. Clonar/Acessar o Projeto
+
 ```bash
+cd autenticacao
+```
+
+### 2. Instalar Dependências
+
+**Backend:**
+
+```bash
+cd backend
 npm install
 ```
 
-3. Configure as variáveis de ambiente (veja a seção [Configuração](#configuração))
-
-4. Execute as migrações do Prisma:
-```bash
-npx prisma migrate dev
-```
-
-5. (Opcional) Popule o banco de dados com dados de exemplo:
-```bash
-npm run seed:movies
-```
-
-## ⚙️ Configuração
-
-Crie um arquivo `.env` na raiz do projeto baseado no arquivo `env.example`:
-
-```env
-DATABASE_URL="postgresql://usuario:senha@localhost:5432/nome_do_banco"
-NODE_ENV="development"
-JWT_SECRET="seu_secret_jwt_super_seguro_aqui"
-JWT_EXPIRES_IN="7d"
-```
-
-### Variáveis de Ambiente
-
-- `DATABASE_URL`: String de conexão com o PostgreSQL
-- `NODE_ENV`: Ambiente de execução (`development` ou `production`)
-- `JWT_SECRET`: Chave secreta para assinatura dos tokens JWT
-- `JWT_EXPIRES_IN`: Tempo de expiração do token (padrão: `7d`)
-
-## 📁 Estrutura do Projeto
-
-```
-middlewares/
-├── prisma/
-│   ├── migrations/          # Migrações do banco de dados
-│   ├── schema.prisma        # Schema do Prisma
-│   └── seed.js              # Script de seed
-├── src/
-│   ├── config/
-│   │   └── db.js            # Configuração do Prisma Client
-│   ├── controllers/
-│   │   ├── authController.js      # Lógica de autenticação
-│   │   └── watchlistController.js # Lógica da watchlist
-│   ├── middleware/
-│   │   └── authMiddleware.js      # Middleware de autenticação JWT
-│   ├── routes/
-│   │   ├── authRoutes.js          # Rotas de autenticação
-│   │   ├── movieRoutes.js         # Rotas de filmes
-│   │   └── watchlistRoutes.js     # Rotas da watchlist
-│   ├── utils/
-│   │   └── generateToken.js       # Geração de tokens JWT
-│   └── server.js                  # Arquivo principal do servidor
-├── .env.example                   # Exemplo de variáveis de ambiente
-├── package.json                   # Dependências e scripts
-└── README.md                      # Documentação
-```
-
-## 🔌 Endpoints da API
-
-### Autenticação (`/auth`)
-
-#### POST `/auth/register`
-Registra um novo usuário.
-
-**Body:**
-```json
-{
-  "name": "João Silva",
-  "email": "joao@example.com",
-  "password": "senha123"
-}
-```
-
-**Resposta (201):**
-```json
-{
-  "status": "success",
-  "data": {
-    "user": {
-      "id": "uuid",
-      "name": "João Silva",
-      "email": "joao@example.com"
-    },
-    "token": "jwt_token_aqui"
-  }
-}
-```
-
-#### POST `/auth/login`
-Autentica um usuário existente.
-
-**Body:**
-```json
-{
-  "email": "joao@example.com",
-  "password": "senha123"
-}
-```
-
-**Resposta (201):**
-```json
-{
-  "status": "success",
-  "data": {
-    "user": {
-      "id": "uuid",
-      "email": "joao@example.com"
-    },
-    "token": "jwt_token_aqui"
-  }
-}
-```
-
-#### POST `/auth/logout`
-Faz logout do usuário (invalida o token).
-
-**Resposta (200):**
-```json
-{
-  "status": "success",
-  "message": "Logged out successfully"
-}
-```
-
-### Filmes (`/movies`)
-
-> **Nota:** As rotas de filmes estão em desenvolvimento e retornam mensagens de placeholder.
-
-- `GET /movies` - Lista todos os filmes
-- `POST /movies` - Cria um novo filme
-- `PUT /movies` - Atualiza um filme
-- `DELETE /movies` - Remove um filme
-
-### Watchlist (`/watchlist`)
-
-> **Requer autenticação:** Todas as rotas de watchlist requerem token JWT válido.
-
-#### POST `/watchlist`
-Adiciona um filme à watchlist do usuário autenticado.
-
-**Headers:**
-```
-Authorization: Bearer <token>
-```
-
-**Body:**
-```json
-{
-  "movieId": "uuid_do_filme",
-  "status": "PLANNED",
-  "rating": 8,
-  "notes": "Filme muito bom!"
-}
-```
-
-**Status possíveis:**
-- `PLANNED` - Planejado para assistir
-- `WATCHING` - Assistindo atualmente
-- `COMPLETED` - Concluído
-- `DROPPED` - Abandonado
-
-**Resposta (201):**
-```json
-{
-  "data": {
-    "watchlistItem": {
-      "id": "uuid",
-      "userId": "uuid",
-      "movieId": "uuid",
-      "status": "PLANNED",
-      "rating": 8,
-      "notes": "Filme muito bom!",
-      "createdAt": "2024-01-01T00:00:00.000Z",
-      "updatedAt": "2024-01-01T00:00:00.000Z"
-    }
-  }
-}
-```
-
-#### DELETE `/watchlist/:id`
-Remove um item da watchlist.
-
-**Headers:**
-```
-Authorization: Bearer <token>
-```
-
-**Resposta (200):**
-```json
-{
-  "status": "success",
-  "message": "Movie removed from watchlist"
-}
-```
-
-## 💾 Modelos de Dados
-
-### User
-```prisma
-{
-  id: String (UUID)
-  name: String
-  email: String (único)
-  password: String (criptografado)
-  createdAt: DateTime
-}
-```
-
-### Movie
-```prisma
-{
-  id: String (UUID)
-  title: String
-  overview: String?
-  releaseYear: Int
-  genres: String[]
-  runtime: Int?
-  posterUrl: String?
-  createdBy: String (FK para User)
-  createdAt: DateTime
-}
-```
-
-### WatchListItem
-```prisma
-{
-  id: String (UUID)
-  userId: String (FK para User)
-  movieId: String (FK para Movie)
-  status: watchListStatus (PLANNED | WATCHING | COMPLETED | DROPPED)
-  rating: Int?
-  notes: String?
-  createdAt: DateTime
-  updatedAt: DateTime
-}
-```
-
-## ▶️ Executando o Projeto
-
-### Modo Desenvolvimento
+**Frontend:**
 
 ```bash
+cd frontend
+npm install
+```
+
+### 3. Executar
+
+**Terminal 1 - Backend:**
+
+```bash
+cd backend
 npm run dev
+# Servidor rodando em http://localhost:3000
 ```
 
-O servidor será iniciado na porta `3000` com hot-reload ativado.
-
-### Modo Produção
+**Terminal 2 - Frontend:**
 
 ```bash
-node src/server.js
+cd frontend
+npm run dev
+# App rodando em http://localhost:5173
 ```
 
-## 📜 Scripts Disponíveis
+### 4. Testar
 
-- `npm run dev` - Inicia o servidor em modo desenvolvimento com nodemon
-- `npm run seed:movies` - Popula o banco de dados com dados de exemplo
-- `npx prisma migrate dev` - Executa migrações do banco de dados
+- Acesse `http://localhost:5173`
+- Faça login com:
+  - **Email:** `dev@teste.com`
+  - **Senha:** `123456`
 
-## 🔒 Autenticação
+---
 
-A API utiliza autenticação baseada em JWT (JSON Web Tokens). Para acessar rotas protegidas:
+## 📡 Endpoints da API
 
-1. Faça login ou registre-se para obter um token
-2. Inclua o token no header `Authorization`:
-   ```
-   Authorization: Bearer <seu_token>
-   ```
-3. O token também pode ser enviado via cookie `jwt`
+| Método | Endpoint  | Protegida | Descrição                          |
+| ------ | --------- | --------- | ---------------------------------- |
+| `POST` | `/login`  | ❌        | Autentica usuário e retorna cookie |
+| `POST` | `/logout` | ❌        | Remove cookie de autenticação      |
+| `GET`  | `/me`     | ✅        | Retorna dados do usuário logado    |
+| `GET`  | `/perfil` | ✅        | Retorna dados sensíveis do usuário |
 
-## 🤝 Contribuindo
+### Exemplos de Request/Response
 
-Contribuições são bem-vindas! Sinta-se à vontade para:
+#### POST /login
 
-1. Fazer um fork do projeto
-2. Criar uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-4. Push para a branch (`git push origin feature/AmazingFeature`)
-5. Abrir um Pull Request
+```bash
+# Request
+curl -X POST http://localhost:3000/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"dev@teste.com","password":"123456"}'
 
-## 👤 Autor
+# Response (200)
+{
+  "message": "Logado com sucesso!",
+  "user": { "email": "dev@teste.com" }
+}
+# + Header: Set-Cookie: access_token=eyJhbGc...; HttpOnly; Path=/
+```
 
-Desenvolvido como projeto de estudo sobre middlewares e autenticação em Node.js.
+#### GET /me (autenticado)
+
+```bash
+# Request (o cookie é enviado automaticamente pelo browser)
+curl http://localhost:3000/me \
+  --cookie "access_token=eyJhbGc..."
+
+# Response (200)
+{
+  "user": {
+    "id": 1,
+    "role": "admin",
+    "email": "dev@teste.com",
+    "iat": 1234567890,
+    "exp": 1234582890
+  }
+}
+```
+
+#### GET /me (não autenticado)
+
+```bash
+# Response (401)
+{
+  "message": "Token não fornecido"
+}
+```
+
+---
+
+## 🧪 Testes Manuais
+
+### Verificando o Cookie no Browser
+
+1. Abra as **DevTools** (F12)
+2. Vá para a aba **Application** (Chrome) ou **Storage** (Firefox)
+3. Em **Cookies**, selecione `http://localhost:5173`
+4. Você verá o cookie `access_token` após login
+
+> 💡 **Nota:** O valor do cookie estará visível aqui, mas `document.cookie` no console retornará vazio devido ao `httpOnly`.
+
+### Testando a Proteção HttpOnly
+
+```javascript
+// No console do browser, após fazer login:
+console.log(document.cookie);
+// Resultado: "" (vazio - cookie não acessível via JS)
+```
+
+### Testando Expiração
+
+O token está configurado para expirar em **15 segundos** (`expiresIn: 15000`). Aguarde esse tempo e tente acessar `/perfil` - você será redirecionado.
+
+---
+
+## ⚠️ Considerações de Segurança
+
+### ✅ O que este projeto implementa:
+
+- Cookie HttpOnly (proteção XSS)
+- Flag `sameSite: lax` (proteção CSRF básica)
+- Flag `secure` em produção (HTTPS obrigatório)
+- Validação de token via middleware
+
+### ⚠️ O que NÃO está implementado (necessário em produção):
+
+1. **Refresh Token**: Sistema de renovação de tokens para não forçar re-login
+2. **HTTPS**: Obrigatório em produção para `secure: true`
+3. **Banco de dados**: Credenciais estão hardcoded
+4. **Rate limiting**: Proteção contra brute force
+5. **Senha hasheada**: Usar bcrypt em produção
+6. **CSRF Token**: Para proteção completa contra CSRF
+7. **Variáveis de ambiente**: SECRET_KEY está hardcoded
+8. **Logs de auditoria**: Registro de tentativas de login
+
+### Exemplo de SECRET_KEY em produção:
+
+```typescript
+// ❌ NÃO FAZER (atual no projeto)
+const SECRET_KEY = "ASD";
+
+// ✅ FAZER em produção
+const SECRET_KEY = process.env.JWT_SECRET; // Via .env
+```
+
+---
+
+> 💡 **Dica:** Use este projeto como base para entender os conceitos. Em produção, considere usar bibliotecas especializadas como `passport.js`, `next-auth`, ou serviços como Auth0/Firebase Auth.
